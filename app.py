@@ -7,28 +7,26 @@ from attendance import FaceRecognition
 import threading
 import os
 import shutil
-import time
-import psutil
-import subprocess
-import sys
 
 
 class FaceRecognitionApp:
     def __init__(self, root):
         self.root = root
+        
         self.excel_path = os.path.join(os.path.dirname(__file__), "data1.xlsx")
         self.backup_excel_path = os.path.join(
             os.path.dirname(__file__), "backup_data1.xlsx"
         )
+        self.create_backup()
+        self.root.after(1000, self.update_table_periodically)
         self.face_register = FaceRegister(
             data_path=os.path.join(os.path.dirname(__file__), "data"),
             recognizer_path=os.path.join(os.path.dirname(__file__), "trainer.yml"),
+            excel_path=self.excel_path,
         )
         self.root.title("Face Recognition")
         self.root.geometry("600x600")
         self.root.configure(bg="lightgrey")
-        self.create_backup()
-        self.root.after(1000, self.update_table_periodically)
 
         self.frame_label = tk.Label(
             self.root,
@@ -147,7 +145,22 @@ class FaceRecognitionApp:
             self.face_register.collect_data()
             self.face_register.train_model()
             self.face_register.save_data(name, student_id, dob, class_name)
+            now = datetime.now()
+            column_name = now.strftime("%Y-%m-%d %H")
+            self.create_status_column(column_name)
             registration_dialog.destroy()
+            self.create_backup()
+            self.show_table()
+    def update_status(self,column_name):
+        wb = openpyxl.load_workbook(self.excel_path)
+        ws = wb.active        
+        status_column = ws.max_column+1
+        ws.cell(row=1, column=ws.max_column + 1, value=column_name)        
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=status_column, max_col=status_column):
+            for cell in row:
+                if cell.value != "X":
+                    cell.value = "V"
+        wb.save(self.excel_path)
 
     def create_status_column(self, column_name):
         wb = openpyxl.load_workbook(self.excel_path)
@@ -158,17 +171,7 @@ class FaceRecognitionApp:
                 column_exists = True
                 break
         if not column_exists:
-            ws.cell(row=1, column=ws.max_column + 1, value=column_name)
-
-            for row in ws.iter_rows(
-                min_row=2,
-                max_row=ws.max_row,
-                min_col=ws.max_column,
-                max_col=ws.max_column,
-            ):
-                for cell in row:
-                    cell.value = "V"
-            wb.save(self.excel_path)
+            self.update_status(column_name)
 
     def attendance(self):
         if (
@@ -177,31 +180,32 @@ class FaceRecognitionApp:
         ):
             now = datetime.now()
             column_name = now.strftime("%Y-%m-%d %H")
-            self.create_status_column(column_name)
             self.update_table_periodically()
-            self.face_attendance = FaceRecognition(
-                os.path.join(
-                    os.path.dirname(__file__), "haarcascade_frontalface_default.xml"
-                ),
-                self.excel_path,
-            )
-            if self.face_attendance.trainer_status:
-                self.face_attendance.video.release()
+            try:
                 self.face_attendance = FaceRecognition(
                     os.path.join(
                         os.path.dirname(__file__), "haarcascade_frontalface_default.xml"
                     ),
                     self.excel_path,
                 )
-                attendance_thread = threading.Thread(target=self.face_attendance.run)
-                attendance_thread.start()
-            else:
+            except:
                 self.show_registration_required_message()
+                return
+            self.create_status_column(column_name)
+            self.face_attendance.video.release()
+            self.face_attendance = FaceRecognition(
+                os.path.join(
+                    os.path.dirname(__file__), "haarcascade_frontalface_default.xml"
+                ),
+                self.excel_path,
+            )
+            attendance_thread = threading.Thread(target=self.face_attendance.run)
+            attendance_thread.start()
 
     def show_registration_required_message(self):
         registration_message = tk.Label(
             self.root,
-            text="Vui lòng đăng ký trước khi thực hiện điểm danh!",
+            text="Không có dữ liệu hiển thị. Vui lòng đăng kí trước khi điểm danh",
             font=("Arial", 12),
             bg="lightgrey",
         )
@@ -214,14 +218,13 @@ class FaceRecognitionApp:
         return False
 
     def show_table(self):
-        self.tree.delete(*self.tree.get_children())
-
         try:
             wb = openpyxl.load_workbook(self.backup_excel_path)
         except:
             wb = openpyxl.load_workbook(self.excel_path)
         ws = wb.active
         row_number = 1
+        self.tree.delete(*self.tree.get_children())
 
         for row in ws.iter_rows(min_row=2, values_only=True):
             if len(row) >= 5:

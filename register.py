@@ -5,21 +5,21 @@ import numpy as np
 from PIL import Image
 import openpyxl
 
+
 class FaceRegister:
-    def __init__(self, data_path, recognizer_path):
+    def __init__(self, data_path, recognizer_path, excel_path):
         self.recognizer = cv2.face_LBPHFaceRecognizer.create()
         self.data_path = data_path
         self.recognizer_path = recognizer_path
-        self.excel_path = (
-                "C:/Users/hieul/OneDrive/Desktop/face-attendance-system/data1.xlsx"
-            )
+        self.excel_path = excel_path
+
     def collect_data(self):
-        user_id=self.get_next_id()
+        user_id = self.get_next_id()
         video = cv2.VideoCapture(0)
-        facedetect = cv2.CascadeClassifier(
-            "C:/Users/hieul/OneDrive/Desktop/face-attendance-system/haarcascade_frontalface_default.xml"
-        )
+
+        facedetect = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
         count = 0
+
         while True:
             ret, frame = video.read()
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -68,19 +68,18 @@ class FaceRegister:
         else:
             messagebox.showerror("Lỗi", "Không tìm thấy dữ liệu huấn luyện.")
 
-    def save_data(self,name,student_id,dob,class_name):
-        next_id=self.get_next_id()
+    def save_data(self, name, student_id, dob, class_name):
         wb = openpyxl.load_workbook(self.excel_path)
         ws = wb.active
-        ws.cell(row=next_id, column=1, value=next_id) 
-        ws.cell(row=next_id, column=2, value=name) 
-        ws.cell(row=next_id, column=3, value=student_id) 
-        ws.cell(row=next_id, column=4, value=dob) 
-        ws.cell(row=next_id, column=5, value=class_name) 
+        next_id = self.get_next_id()
+        ws.cell(row=next_id, column=1, value=next_id)
+        ws.cell(row=next_id, column=2, value=name)
+        ws.cell(row=next_id, column=3, value=student_id)
+        ws.cell(row=next_id, column=4, value=dob)
+        ws.cell(row=next_id, column=5, value=class_name)
         wb.save(self.excel_path)
-    
+
     def get_next_id(self):
         wb = openpyxl.load_workbook(self.excel_path)
         ws = wb.active
         return ws.max_row + 1
-
